@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Foundations Playground</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 ML Foundations Playground</h1>
+            <p>Train ML models with your data</p>
+        </header>
+
+        <main>
+            <div class="pipeline">
+                
+                <!-- STEP 1: Load Dataset -->
+                <div class="block">
+                    <div class="block-header">
+                        <h3>1️⃣ Load Dataset</h3>
+                    </div>
+                    <div class="block-content">
+                        <div class="demo-datasets-section">
+                            <h4>Quick Start - Demo Datasets:</h4>
+                            <button class="demo-btn" onclick="loadDemoDataset('iris')">🌸 Iris</button>
+                            <button class="demo-btn" onclick="loadDemoDataset('titanic')">🚢 Titanic</button>
+                            <button class="demo-btn" onclick="loadDemoDataset('house_prices')">🏠 House Prices</button>
+                        </div>
+                        <div class="divider">OR</div>
+                        <input type="file" id="file-input" accept=".csv" class="file-input">
+                        <label for="file-input" class="file-label">
+                            📁 Upload Your CSV
+                        </label>
+                        <p id="file-name" class="file-name"></p>
+                    </div>
+                </div>
+
+                <!-- STEP 2: Data Preview (when file loaded) -->
+                <div class="block" id="preview-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>📊 Dataset Preview</h3>
+                    </div>
+                    <div class="block-content">
+                        <p><strong>Rows:</strong> <span id="row-count">0</span> | <strong>Columns:</strong> <span id="col-count">0</span></p>
+                        <div class="table-scroll">
+                            <table id="data-table" class="preview-table">
+                                <thead id="table-head"></thead>
+                                <tbody id="table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- STEP 3: Select Features -->
+                <div class="block" id="features-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>2️⃣ Select Features (X)</h3>
+                    </div>
+                    <div class="block-content">
+                        <p>Choose columns to use as input:</p>
+                        <div id="features-list" class="checkbox-group"></div>
+                        <p class="info-text">These are the data columns the model learns from.</p>
+                    </div>
+                </div>
+
+                <!-- STEP 4: Select Target -->
+                <div class="block" id="target-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>3️⃣ Select Target (Y)</h3>
+                    </div>
+                    <div class="block-content">
+                        <p>Choose the column to predict:</p>
+                        <select id="target-select" class="select-input">
+                            <option value="">-- Select Target Column --</option>
+                        </select>
+                        <p class="info-text">This is what your model will learn to predict.</p>
+                    </div>
+                </div>
+
+                <!-- STEP 5: Select Algorithm -->
+                <div class="block" id="algorithm-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>4️⃣ Choose Algorithm</h3>
+                    </div>
+                    <div class="block-content">
+                        <select id="algorithm-select" class="select-input">
+                            <option value="">-- Select Algorithm --</option>
+                            <option value="linear_regression">Linear Regression (predict numbers)</option>
+                            <option value="logistic_regression">Logistic Regression (predict categories)</option>
+                            <option value="knn">K-Nearest Neighbors (flexible)</option>
+                            <option value="decision_tree">Decision Tree (interpretable)</option>
+                            <option value="random_forest">Random Forest (accurate)</option>
+                        </select>
+                        <p class="info-text">Pick how the model should make predictions.</p>
+                    </div>
+                </div>
+
+                <!-- STEP 6: Train Button -->
+                <div class="block" id="train-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>5️⃣ Train Model</h3>
+                    </div>
+                    <div class="block-content">
+                        <button id="train-button" class="train-button">
+                            🚀 Train Model
+                        </button>
+                        <p id="status-message" class="status-message"></p>
+                    </div>
+                </div>
+
+                <!-- STEP 7: Results -->
+                <div class="block" id="results-block" style="display: none;">
+                    <div class="block-header">
+                        <h3>📈 Results</h3>
+                    </div>
+                    <div class="block-content">
+                        <div id="results-content" class="results-content">
+                            <div class="result-item">
+                                <div class="result-label">Metric</div>
+                                <div class="result-value" id="metric-display"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+
+        <footer>
+            <p>ML Foundations Playground • Simple ML Training</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
