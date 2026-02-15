@@ -47,7 +47,7 @@ Users can also upload their own CSV datasets for training models or clustering a
 1. Clone the repository:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Rares174/ML-Foundations-Playground
 cd ML-Foundations-Playground
 ```
 
@@ -70,7 +70,7 @@ http://localhost:5000
 1. Clone the repository:
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Rares174/ML-Foundations-Playground
 cd ML-Foundations-Playground
 ```
 
