@@ -25,7 +25,7 @@ supervised_algs = [
     "random_forest_classifier", "support_vector_machine", "naive_bayes", "gradient_boosting","xgboost"
 ]
 
-def run_ml(file_path, algorithm, features, target, metric):
+def run_ml(file_path, algorithm, features, target, metric=None):
     """
     ML pipeline supporting supervised and KMeans clustering, with matplotlib plots and explanations.
     """
@@ -110,21 +110,22 @@ def run_ml(file_path, algorithm, features, target, metric):
                 model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
             else:
                 raise ValueError(f"Unknown algorithm: {algorithm}")
+
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-            # --- METRIC SYSTEM: always works ---
-            # Determine regression/classification
+
+            # --- Determine regression vs classification ---
             if algorithm in ["linear_regression"] or (algorithm == "decision_tree" and isinstance(model, LinearRegression)) or (algorithm == "random_forest" and isinstance(model, RandomForestRegressor)):
                 task_type = "regression"
             else:
                 task_type = "classification"
-            # Default metric selection
+
+            # --- Metric selection (handles missing / invalid metric gracefully) ---
             if metric is not None and metric.lower() in METRICS:
                 chosen_metric = metric.lower()
             else:
                 chosen_metric = "r2_score" if task_type == "regression" else "accuracy"
 
-            # Robust metric selection
             if chosen_metric in METRICS:
                 metric_func, metric_type, metric_name = METRICS[chosen_metric]
             else:
@@ -132,8 +133,9 @@ def run_ml(file_path, algorithm, features, target, metric):
                 metric_type = task_type
                 metric_name = chosen_metric.upper()
 
-                # Compute metric safely
+            # --- Compute metric safely ---
             if metric_type != task_type:
+                # Metric doesn't match task type — fall back to default
                 metric_name = "N/A"
                 score = 0.0
             else:
@@ -149,10 +151,13 @@ def run_ml(file_path, algorithm, features, target, metric):
                     score = metric_func(y_test, y_score)
                 else:
                     score = metric_func(y_test, y_pred)
-
                 score = float(score)
 
             metric_value = score
+
+            # ---- PLOTS (all inside the supervised branch) ----
+
+            # 1) Scatter plots: every feature vs target
             for feat in features:
                 plt.figure()
                 plt.scatter(df[feat], df[target], alpha=0.7)
@@ -167,34 +172,22 @@ def run_ml(file_path, algorithm, features, target, metric):
                     "path": plot_path,
                     "explanation": f"Scatter plot of {feat} vs {target}. Shows the relationship between this feature and the target."
                 })
-        elif algorithm == "logistic_regression":
-            # For classification, plot confusion matrix
-            plt.figure()
-            ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-            plt.title("Confusion Matrix (Logistic Regression)")
-            plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_logreg_confusion_matrix.png")
-            plt.tight_layout()
-            plt.savefig(plot_path)
-            plt.close()
-            plots.append({
-                "path": plot_path,
-                "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
-            })
-        elif algorithm == "knn":
-            # For KNN, plot confusion matrix
-            plt.figure()
-            ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-            plt.title("Confusion Matrix (KNN)")
-            plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_knn_confusion_matrix.png")
-            plt.tight_layout()
-            plt.savefig(plot_path)
-            plt.close()
-            plots.append({
-                "path": plot_path,
-                "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified by KNN."
-            })
-        elif algorithm == "decision_tree" or algorithm == "random_forest":
-            # For tree/forest, plot feature importances if available
+
+            # 2) Confusion matrix for ALL classifiers
+            if task_type == "classification":
+                plt.figure()
+                ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
+                plt.title(f"Confusion Matrix ({algorithm.replace('_', ' ').title()})")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_confusion_matrix.png")
+                plt.tight_layout()
+                plt.savefig(plot_path)
+                plt.close()
+                plots.append({
+                    "path": plot_path,
+                    "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
+                })
+
+            # 3) Feature importances for tree-based models
             if hasattr(model, "feature_importances_"):
                 importances = model.feature_importances_
                 plt.figure()
@@ -209,27 +202,15 @@ def run_ml(file_path, algorithm, features, target, metric):
                     "path": plot_path,
                     "explanation": "Feature importances: higher bars mean the feature is more important for prediction."
                 })
-            # Also plot confusion matrix for classification
-            if metric_name == "Accuracy":
-                plt.figure()
-                ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-                plt.title(f"Confusion Matrix ({algorithm.replace('_', ' ').title()})")
-                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_confusion_matrix.png")
-                plt.tight_layout()
-                plt.savefig(plot_path)
-                plt.close()
-                plots.append({
-                    "path": plot_path,
-                    "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
-                })
-            # For regression, plot predicted vs actual
-            if metric_name == "MAE":
+
+            # 4) Predicted vs actual for ALL regression models
+            if task_type == "regression":
                 plt.figure()
                 plt.scatter(y_test, y_pred, alpha=0.7)
                 plt.xlabel("Actual")
                 plt.ylabel("Predicted")
                 plt.title(f"Predicted vs Actual ({algorithm.replace('_', ' ').title()})")
-                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_regression_pred_vs_actual.png")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_pred_vs_actual.png")
                 plt.tight_layout()
                 plt.savefig(plot_path)
                 plt.close()
@@ -237,6 +218,7 @@ def run_ml(file_path, algorithm, features, target, metric):
                     "path": plot_path,
                     "explanation": "Scatter plot of predicted vs actual values. Points close to the diagonal indicate good predictions."
                 })
+
         # KMeans clustering
         elif algorithm == "kmeans":
             # Only use features, ignore target
@@ -248,7 +230,6 @@ def run_ml(file_path, algorithm, features, target, metric):
             metric_name = "inertia"
             score = float(kmeans.inertia_)
             metric_value = score
-            explanation = "Inertia measures how internally coherent clusters are (lower is better)."
             # Plot: first two features, color by cluster
             plt.figure()
             plt.scatter(X_encoded.iloc[:, 0], X_encoded.iloc[:, 1], c=cluster_labels, cmap='viridis', alpha=0.7)

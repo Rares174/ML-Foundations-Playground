@@ -49,12 +49,12 @@ try:
     print(f"Result: {result}")
     
     # Validate result format
-    if "metric_name" in result and "metric_value" in result:
+    if "metric" in result and "value" in result:
         print(f"\n✅ Result format is correct:")
-        print(f"   Metric: {result['metric_name']}")
-        print(f"   Value: {result['metric_value']}")
+        print(f"   Metric: {result['metric']}")
+        print(f"   Value: {result['value']}")
     else:
-        print(f"\n❌ Result format incorrect. Expected 'metric_name' and 'metric_value'")
+        print(f"\n❌ Result format incorrect. Expected 'metric' and 'value'")
         print(f"   Got: {result}")
 except Exception as e:
     print(f"❌ ERROR: {e}")
