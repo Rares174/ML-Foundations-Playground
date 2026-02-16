@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -253,8 +252,8 @@ def run_ml(file_path, algorithm, features, target, metric=None):
 
         # Return metric and value (plus any other fields as needed)
         return {
-            "metric": metric_name or "N/A",
-            "value": score if score is not None else metric_value,
+            "metric_name": metric_name or "N/A",
+            "metric_value": score if score is not None else metric_value,
             "plots": plots
         }
     except Exception as e:
