@@ -66,7 +66,7 @@ try:
     
     response = urllib.request.urlopen(request)
     result = json.loads(response.read().decode())
-    print(f"  ✅ KNN Classification: {result['metric_name']} = {result['metric_value']}")
+    print(f"  ✅ KNN Classification: {result['metric']} = {result['value']}")
 except Exception as e:
     print(f"  ❌ FAILED: {e}")
     exit(1)
@@ -106,7 +106,7 @@ try:
     
     response = urllib.request.urlopen(request)
     result = json.loads(response.read().decode())
-    print(f"  ✅ Linear Regression: {result['metric_name']} = {result['metric_value']}")
+    print(f"  ✅ Linear Regression: {result['metric']} = {result['value']}")
 except Exception as e:
     print(f"  ❌ FAILED: {e}")
     exit(1)
@@ -147,7 +147,7 @@ for algo in algorithms:
         
         response = urllib.request.urlopen(request)
         result = json.loads(response.read().decode())
-        print(f"  ✅ {algo}: {result['metric_name']} = {result['metric_value']}")
+        print(f"  ✅ {algo}: {result['metric']} = {result['value']}")
     except Exception as e:
         print(f"  ❌ {algo} FAILED: {e}")
         exit(1)

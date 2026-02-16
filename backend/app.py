@@ -9,6 +9,25 @@ frontend_path = os.path.join(os.path.dirname(__file__), "../frontend")
 app = Flask(__name__, static_folder=frontend_path, static_url_path="")
 CORS(app)
 from flask import abort
+
+# Legacy endpoint for /demo/<filename> for test compatibility
+@app.route('/demo/<filename>', methods=['GET'])
+def serve_demo_legacy(filename):
+    file_path = os.path.join(DEMO_DIR, filename)
+    if not os.path.exists(file_path):
+        return jsonify({"error": f"Demo file '{filename}' not found"}), 404
+    return send_file(file_path, mimetype='text/csv', as_attachment=False)
+from flask import Flask, request, jsonify, send_file, send_from_directory
+from flask_cors import CORS
+from ml_engine import run_ml
+import os
+import tempfile
+import json
+
+frontend_path = os.path.join(os.path.dirname(__file__), "../frontend")
+app = Flask(__name__, static_folder=frontend_path, static_url_path="")
+CORS(app)
+from flask import abort
 # Serve matplotlib plot images by path (for frontend display)
 @app.route('/ml-plot')
 def serve_ml_plot():

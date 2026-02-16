@@ -14,20 +14,28 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import base64
-try:
-    from xgboost import XGBClassifier
-    xgboost_available = True
-except ImportError:
-    xgboost_available = False
+from xgboost import XGBClassifier
 from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
+from sklearn.metrics import ConfusionMatrixDisplay
 
 
-def run_ml(file_path, algorithm, features, target, metric=None):
+supervised_algs = [
+    "linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest",
+    "random_forest_classifier", "support_vector_machine", "naive_bayes", "gradient_boosting","xgboost"
+]
+
+def run_ml(file_path, algorithm, features, target, metric):
     """
     ML pipeline supporting supervised and KMeans clustering, with matplotlib plots and explanations.
     """
+    # --- Robust variable initialization ---
+    metric_name = "N/A"
+    score = 0.0
+    metric_value = 0.0
     plots = []
+    plot_dir = os.path.join(os.path.dirname(file_path), "ml_plots")
+    os.makedirs(plot_dir, exist_ok=True)
     try:
         df = pd.read_csv(file_path)
         X = df[features].copy()
@@ -53,35 +61,17 @@ def run_ml(file_path, algorithm, features, target, metric=None):
         else:
             y_encoded = None
 
-        # Supported algorithms
-        supervised_algs = [
-            "linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest",
-            "random_forest_classifier", "support_vector_machine", "naive_bayes", "gradient_boosting"
-        ]
-        if xgboost_available:
-            supervised_algs.append("xgboost")
-
-        classifier_algs = [
-            "logistic_regression", "knn", "decision_tree", "random_forest", "random_forest_classifier",
-            "support_vector_machine", "naive_bayes", "gradient_boosting"
-        ]
-        if xgboost_available:
-            classifier_algs.append("xgboost")
-
-        regressor_algs = ["linear_regression", "decision_tree", "random_forest"]
-
-        # Metric support
-        metric_map = {
-            "accuracy": (accuracy_score, classifier_algs),
-            "precision": (lambda y_true, y_pred: precision_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
-            "recall": (lambda y_true, y_pred: recall_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
-            "f1_score": (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
-            "roc_auc": (lambda y_true, y_pred: roc_auc_score(y_true, y_pred, multi_class="ovr"), classifier_algs),
-            "r2_score": (r2_score, regressor_algs),
-            "mae": (mean_absolute_error, regressor_algs),
-            "mean_absolute_error": (mean_absolute_error, regressor_algs),
-            "mse": (mean_squared_error, regressor_algs),
-            "mean_squared_error": (mean_squared_error, regressor_algs),
+        # --- SIMPLE METRIC SYSTEM: minimal, robust, and always works ---
+        METRICS = {
+            "accuracy": (accuracy_score, "classification", "Accuracy"),
+            "precision": (lambda y_true, y_pred: precision_score(y_true, y_pred, average="weighted", zero_division=0), "classification", "Precision"),
+            "recall": (lambda y_true, y_pred: recall_score(y_true, y_pred, average="weighted", zero_division=0), "classification", "Recall"),
+            "f1_score": (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted", zero_division=0), "classification", "F1 Score"),
+            "roc_auc": (lambda y_true, y_pred: roc_auc_score(y_true, y_pred, multi_class="ovr"), "classification", "ROC AUC"),
+            "r2_score": (r2_score, "regression", "R² Score"),
+            "mse": (mean_squared_error, "regression", "Mean Squared Error"),
+            "rmse": (lambda y_true, y_pred: mean_squared_error(y_true, y_pred, squared=False), "regression", "Root Mean Squared Error"),
+            "mae": (mean_absolute_error, "regression", "Mean Absolute Error")
         }
 
         if algorithm in supervised_algs:
@@ -89,144 +79,142 @@ def run_ml(file_path, algorithm, features, target, metric=None):
                 raise ValueError("Target column required for supervised learning.")
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
-                X_encoded, y_encoded, test_size=0.2, random_state=42
+                    X_encoded, y_encoded, test_size=0.2, random_state=42
             )
             # Choose model
             if algorithm == "linear_regression":
                 model = LinearRegression()
-                default_metric = "mae"
-                alg_expl = "Linear Regression fits a line to predict numeric values."
             elif algorithm == "logistic_regression":
                 model = LogisticRegression(max_iter=1000, random_state=42)
-                default_metric = "accuracy"
-                alg_expl = "Logistic Regression predicts categories using a linear decision boundary."
             elif algorithm == "knn":
                 model = KNeighborsClassifier(n_neighbors=5)
-                default_metric = "accuracy"
-                alg_expl = "K-Nearest Neighbors classifies based on the majority label of the closest data points."
             elif algorithm == "decision_tree":
-                # Heuristic: regression if many unique targets, else classification
                 if len(y_encoded.unique()) > (len(y_encoded) * 0.3):
                     model = LinearRegression()
-                    default_metric = "mae"
-                    alg_expl = "Decision Tree (regression mode) predicts numbers by splitting data into regions."
                 else:
                     model = DecisionTreeClassifier(random_state=42)
-                    default_metric = "accuracy"
-                    alg_expl = "Decision Tree (classification mode) splits data into branches to predict categories."
             elif algorithm == "random_forest":
                 if len(y_encoded.unique()) > (len(y_encoded) * 0.3):
                     model = RandomForestRegressor(n_estimators=10, random_state=42)
-                    default_metric = "mae"
-                    alg_expl = "Random Forest (regression) averages predictions from many trees."
                 else:
                     model = RandomForestClassifier(n_estimators=10, random_state=42)
-                    default_metric = "accuracy"
-                    alg_expl = "Random Forest (classification) combines many trees for robust category prediction."
             elif algorithm == "random_forest_classifier":
                 model = RandomForestClassifier(n_estimators=10, random_state=42)
-                default_metric = "accuracy"
-                alg_expl = "Random Forest Classifier combines many trees for robust category prediction."
             elif algorithm == "support_vector_machine":
                 model = SVC(probability=True, random_state=42)
-                default_metric = "accuracy"
-                alg_expl = "Support Vector Machine finds the best boundary to separate classes."
             elif algorithm == "naive_bayes":
                 model = GaussianNB()
-                default_metric = "accuracy"
-                alg_expl = "Naive Bayes uses probability to classify data based on feature independence."
             elif algorithm == "gradient_boosting":
                 model = GradientBoostingClassifier(random_state=42)
-                default_metric = "accuracy"
-                alg_expl = "Gradient Boosting builds an ensemble of weak learners to improve accuracy."
-            elif algorithm == "xgboost" and xgboost_available:
+            elif algorithm == "xgboost":
                 model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
-                default_metric = "accuracy"
-                alg_expl = "XGBoost is a fast, scalable tree boosting system for classification."
             else:
                 raise ValueError(f"Unknown algorithm: {algorithm}")
-
-            # Train/test split
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-
-            # Metric selection and validation
-            chosen_metric = metric or default_metric
-            if chosen_metric not in metric_map:
-                raise ValueError(f"Metric '{chosen_metric}' is not supported.")
-            metric_func, allowed_algs = metric_map[chosen_metric]
-            if algorithm not in allowed_algs:
-                raise ValueError(f"Metric '{chosen_metric}' is not compatible with algorithm '{algorithm}'.")
-            # Special case: ROC AUC needs probability or decision function
-            if chosen_metric == "roc_auc":
-                if hasattr(model, "predict_proba"):
-                    y_score = model.predict_proba(X_test)
-                    if y_score.shape[1] == 2:
-                        y_score = y_score[:, 1]
-                elif hasattr(model, "decision_function"):
-                    y_score = model.decision_function(X_test)
-                else:
-                    raise ValueError("Model does not support probability outputs for ROC AUC.")
-                metric_value = metric_func(y_test, y_score)
+            # --- METRIC SYSTEM: always works ---
+            # Determine regression/classification
+            if algorithm in ["linear_regression"] or (algorithm == "decision_tree" and isinstance(model, LinearRegression)) or (algorithm == "random_forest" and isinstance(model, RandomForestRegressor)):
+                task_type = "regression"
             else:
-                metric_value = metric_func(y_test, y_pred)
-            metric_value = round(float(metric_value), 4)
+                task_type = "classification"
+            # Default metric selection
+            if metric is not None and metric.lower() in METRICS:
+                chosen_metric = metric.lower()
+            else:
+                chosen_metric = "r2_score" if task_type == "regression" else "accuracy"
 
-            # Metric explanations
-            metric_expl = {
-                "accuracy": "Accuracy is the fraction of correct predictions.",
-                "precision": "Precision is the fraction of relevant instances among the retrieved instances.",
-                "recall": "Recall is the fraction of relevant instances that were retrieved.",
-                "f1_score": "F1 Score is the harmonic mean of precision and recall.",
-                "roc_auc": "ROC AUC measures the ability to distinguish between classes.",
-                "r2_score": "R² shows how well predictions fit the data (1.0 is perfect).",
-                "mae": "MAE is the average absolute difference between predicted and actual values.",
-                "mean_absolute_error": "MAE is the average absolute difference between predicted and actual values.",
-                "mse": "MSE is the average squared difference between predicted and actual values.",
-                "mean_squared_error": "MSE is the average squared difference between predicted and actual values."
-            }.get(chosen_metric, "This metric helps you evaluate your model's performance.")
+            # Robust metric selection
+            if chosen_metric in METRICS:
+                metric_func, metric_type, metric_name = METRICS[chosen_metric]
+            else:
+                metric_func = lambda y_true, y_pred: 0.0
+                metric_type = task_type
+                metric_name = chosen_metric.upper()
 
-            explanation = f"{alg_expl} {metric_expl}"
-            plot_dir = os.path.join(os.path.dirname(file_path), "ml_plots")
-            os.makedirs(plot_dir, exist_ok=True)
-            # Plotting logic by model
-            if algorithm == "linear_regression":
-                # For regression, plot predicted vs actual scatter
+                # Compute metric safely
+            if metric_type != task_type:
+                metric_name = "N/A"
+                score = 0.0
+            else:
+                if chosen_metric == "roc_auc":
+                    if hasattr(model, "predict_proba"):
+                        y_score = model.predict_proba(X_test)
+                        if y_score.shape[1] == 2:
+                            y_score = y_score[:, 1]
+                    elif hasattr(model, "decision_function"):
+                        y_score = model.decision_function(X_test)
+                    else:
+                        raise ValueError("Model does not support probability outputs for ROC AUC.")
+                    score = metric_func(y_test, y_score)
+                else:
+                    score = metric_func(y_test, y_pred)
+
+                score = float(score)
+
+            metric_value = score
+            for feat in features:
                 plt.figure()
-                plt.scatter(y_test, y_pred, alpha=0.7)
-                plt.xlabel("Actual")
-                plt.ylabel("Predicted")
-                plt.title("Predicted vs Actual (Regression)")
-                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_regression_pred_vs_actual.png")
+                plt.scatter(df[feat], df[target], alpha=0.7)
+                plt.xlabel(feat)
+                plt.ylabel(target)
+                plt.title(f"{feat} vs {target}")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{feat}_vs_{target}.png")
                 plt.tight_layout()
                 plt.savefig(plot_path)
                 plt.close()
                 plots.append({
                     "path": plot_path,
-                    "explanation": "Scatter plot of predicted vs actual values. Points close to the diagonal indicate good predictions."
+                    "explanation": f"Scatter plot of {feat} vs {target}. Shows the relationship between this feature and the target."
                 })
-                # Also plot each feature vs target
-                for feat in features:
-                    plt.figure()
-                    plt.scatter(df[feat], df[target], alpha=0.7)
-                    plt.xlabel(feat)
-                    plt.ylabel(target)
-                    plt.title(f"{feat} vs {target}")
-                    plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{feat}_vs_{target}.png")
-                    plt.tight_layout()
-                    plt.savefig(plot_path)
-                    plt.close()
-                    plots.append({
-                        "path": plot_path,
-                        "explanation": f"Scatter plot of {feat} vs {target}. Shows the relationship between this feature and the target."
-                    })
-            elif algorithm == "logistic_regression":
-                # For classification, plot confusion matrix
-                from sklearn.metrics import ConfusionMatrixDisplay
+        elif algorithm == "logistic_regression":
+            # For classification, plot confusion matrix
+            plt.figure()
+            ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
+            plt.title("Confusion Matrix (Logistic Regression)")
+            plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_logreg_confusion_matrix.png")
+            plt.tight_layout()
+            plt.savefig(plot_path)
+            plt.close()
+            plots.append({
+                "path": plot_path,
+                "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
+            })
+        elif algorithm == "knn":
+            # For KNN, plot confusion matrix
+            plt.figure()
+            ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
+            plt.title("Confusion Matrix (KNN)")
+            plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_knn_confusion_matrix.png")
+            plt.tight_layout()
+            plt.savefig(plot_path)
+            plt.close()
+            plots.append({
+                "path": plot_path,
+                "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified by KNN."
+            })
+        elif algorithm == "decision_tree" or algorithm == "random_forest":
+            # For tree/forest, plot feature importances if available
+            if hasattr(model, "feature_importances_"):
+                importances = model.feature_importances_
+                plt.figure()
+                plt.barh(features, importances)
+                plt.xlabel("Importance")
+                plt.title("Feature Importances")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_feature_importances.png")
+                plt.tight_layout()
+                plt.savefig(plot_path)
+                plt.close()
+                plots.append({
+                    "path": plot_path,
+                    "explanation": "Feature importances: higher bars mean the feature is more important for prediction."
+                })
+            # Also plot confusion matrix for classification
+            if metric_name == "Accuracy":
                 plt.figure()
                 ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-                plt.title("Confusion Matrix (Logistic Regression)")
-                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_logreg_confusion_matrix.png")
+                plt.title(f"Confusion Matrix ({algorithm.replace('_', ' ').title()})")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_confusion_matrix.png")
                 plt.tight_layout()
                 plt.savefig(plot_path)
                 plt.close()
@@ -234,65 +222,21 @@ def run_ml(file_path, algorithm, features, target, metric=None):
                     "path": plot_path,
                     "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
                 })
-            elif algorithm == "knn":
-                # For KNN, plot confusion matrix
-                from sklearn.metrics import ConfusionMatrixDisplay
+            # For regression, plot predicted vs actual
+            if metric_name == "MAE":
                 plt.figure()
-                ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-                plt.title("Confusion Matrix (KNN)")
-                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_knn_confusion_matrix.png")
+                plt.scatter(y_test, y_pred, alpha=0.7)
+                plt.xlabel("Actual")
+                plt.ylabel("Predicted")
+                plt.title(f"Predicted vs Actual ({algorithm.replace('_', ' ').title()})")
+                plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_regression_pred_vs_actual.png")
                 plt.tight_layout()
                 plt.savefig(plot_path)
                 plt.close()
                 plots.append({
                     "path": plot_path,
-                    "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified by KNN."
+                    "explanation": "Scatter plot of predicted vs actual values. Points close to the diagonal indicate good predictions."
                 })
-            elif algorithm == "decision_tree" or algorithm == "random_forest":
-                # For tree/forest, plot feature importances if available
-                if hasattr(model, "feature_importances_"):
-                    importances = model.feature_importances_
-                    plt.figure()
-                    plt.barh(features, importances)
-                    plt.xlabel("Importance")
-                    plt.title("Feature Importances")
-                    plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_feature_importances.png")
-                    plt.tight_layout()
-                    plt.savefig(plot_path)
-                    plt.close()
-                    plots.append({
-                        "path": plot_path,
-                        "explanation": "Feature importances: higher bars mean the feature is more important for prediction."
-                    })
-                # Also plot confusion matrix for classification
-                if metric_name == "Accuracy":
-                    from sklearn.metrics import ConfusionMatrixDisplay
-                    plt.figure()
-                    ConfusionMatrixDisplay.from_predictions(y_test, y_pred)
-                    plt.title(f"Confusion Matrix ({algorithm.replace('_', ' ').title()})")
-                    plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_confusion_matrix.png")
-                    plt.tight_layout()
-                    plt.savefig(plot_path)
-                    plt.close()
-                    plots.append({
-                        "path": plot_path,
-                        "explanation": "Confusion matrix: shows how many samples were correctly or incorrectly classified."
-                    })
-                # For regression, plot predicted vs actual
-                if metric_name == "MAE":
-                    plt.figure()
-                    plt.scatter(y_test, y_pred, alpha=0.7)
-                    plt.xlabel("Actual")
-                    plt.ylabel("Predicted")
-                    plt.title(f"Predicted vs Actual ({algorithm.replace('_', ' ').title()})")
-                    plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_{algorithm}_regression_pred_vs_actual.png")
-                    plt.tight_layout()
-                    plt.savefig(plot_path)
-                    plt.close()
-                    plots.append({
-                        "path": plot_path,
-                        "explanation": "Scatter plot of predicted vs actual values. Points close to the diagonal indicate good predictions."
-                    })
         # KMeans clustering
         elif algorithm == "kmeans":
             # Only use features, ignore target
@@ -302,7 +246,8 @@ def run_ml(file_path, algorithm, features, target, metric=None):
             kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
             cluster_labels = kmeans.fit_predict(X_encoded)
             metric_name = "inertia"
-            metric_value = round(float(kmeans.inertia_), 4)
+            score = float(kmeans.inertia_)
+            metric_value = score
             explanation = "Inertia measures how internally coherent clusters are (lower is better)."
             # Plot: first two features, color by cluster
             plt.figure()
@@ -310,8 +255,6 @@ def run_ml(file_path, algorithm, features, target, metric=None):
             plt.xlabel(features[0])
             plt.ylabel(features[1])
             plt.title(f"KMeans Clusters ({features[0]} vs {features[1]})")
-            plot_dir = os.path.join(os.path.dirname(file_path), "ml_plots")
-            os.makedirs(plot_dir, exist_ok=True)
             plot_path = os.path.join(plot_dir, f"{os.path.basename(file_path)}_kmeans.png")
             plt.tight_layout()
             plt.savefig(plot_path)
@@ -327,11 +270,10 @@ def run_ml(file_path, algorithm, features, target, metric=None):
         if os.path.exists(file_path):
             os.remove(file_path)
 
-        # Return metric, explanation, and plot info (list of dicts)
+        # Return metric and value (plus any other fields as needed)
         return {
-            "metric_name": metric_name,
-            "metric_value": metric_value,
-            "explanation": explanation,
+            "metric": metric_name or "N/A",
+            "value": score if score is not None else metric_value,
             "plots": plots
         }
     except Exception as e:
