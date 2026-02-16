@@ -11,7 +11,8 @@ const state = {
     columns: [],
     selectedFeatures: [],
     selectedTarget: "",
-    selectedAlgorithm: ""
+    selectedAlgorithm: "",
+    selectedMetric: "accuracy" // default
 };
 
 // DOM Elements
@@ -34,6 +35,8 @@ const algorithmSelect = document.getElementById("algorithm-select");
 const trainButton = document.getElementById("train-button");
 const statusMessage = document.getElementById("status-message");
 const metricDisplay = document.getElementById("metric-display");
+const metricTab = document.getElementById("metrics-tab");
+const metricList = document.getElementById("metrics-list");
 
 // ============================================================================
 // EVENT LISTENERS
@@ -43,6 +46,13 @@ fileInput.addEventListener("change", handleFileUpload);
 algorithmSelect.addEventListener("change", (e) => {
     state.selectedAlgorithm = e.target.value;
 });
+if (metricList) {
+    metricList.addEventListener("change", (e) => {
+        if (e.target && e.target.name === "metric-radio") {
+            state.selectedMetric = e.target.value;
+        }
+    });
+}
 trainButton.addEventListener("click", handleTrain);
 
 // ============================================================================
@@ -207,6 +217,7 @@ async function handleTrain() {
         formData.append("features", JSON.stringify(state.selectedFeatures));
         formData.append("target", state.selectedTarget);
         formData.append("algorithm", state.selectedAlgorithm);
+        formData.append("metric", state.selectedMetric);
         
         // Log payload
         console.log("📤 TRAINING PAYLOAD:");
@@ -232,8 +243,10 @@ async function handleTrain() {
         
         // Show results
         if (result.metric_name && result.metric_value !== undefined) {
-            displayResults(result.metric_name, result.metric_value, result.plots || []);
+            displayResults(result.metric_name, result.metric_value, result.plots || [], result.explanation);
             showStatus("✅ Training completed!", "success");
+        } else if (result.error) {
+            showStatus(`❌ ${result.error}`, "error");
         } else {
             throw new Error("Invalid response format");
         }
@@ -246,35 +259,12 @@ async function handleTrain() {
     }
 }
 
-function displayResults(metricName, metricValue, plots = []) {
+function displayResults(metricName, metricValue, plots = [], explanation = "") {
     resultBlock.style.display = "block";
     metricDisplay.innerHTML = `<div style='font-size:1.5rem;font-weight:bold;color:var(--success-color);'>${metricName.toUpperCase()}: ${metricValue}</div>`;
-    // Add explanation below
-    let explanation = "";
-    switch (metricName.toLowerCase()) {
-        case "accuracy":
-            explanation = "Accuracy measures the percentage of correct predictions. Higher is better (max 1.0 = perfect).";
-            break;
-        case "mae":
-        case "mean absolute error":
-            explanation = "MAE (Mean Absolute Error) measures the average difference between predicted and actual values. Lower is better (0 = perfect).";
-            break;
-        case "mse":
-        case "mean squared error":
-            explanation = "MSE (Mean Squared Error) measures the average squared difference between predicted and actual values. Lower is better (0 = perfect).";
-            break;
-        case "inertia":
-            explanation = "Inertia measures how tightly grouped the clusters are in KMeans. Lower is better (0 = perfect clustering).";
-            break;
-        case "r2":
-        case "r2 score":
-            explanation = "R² (coefficient of determination) shows how well predictions fit the data. 1.0 is perfect, 0 means no fit.";
-            break;
-        default:
-            explanation = "This metric helps you evaluate your model's performance.";
+    if (explanation) {
+        metricDisplay.innerHTML += `<div style='margin-top:8px;font-size:1rem;color:var(--text-secondary);'>${explanation}</div>`;
     }
-    metricDisplay.innerHTML += `<div style='margin-top:8px;font-size:1rem;color:var(--text-secondary);'>${explanation}</div>`;
-
     // Show plots with explanations if present
     if (plots.length > 0) {
         metricDisplay.innerHTML += `<div style='margin-top:18px;'><strong>Generated Plots:</strong></div>`;

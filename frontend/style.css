@@ -1,3 +1,29 @@
+/* ==========================================================================
+   METRICS TAB & RADIO GROUP
+   ========================================================================== */
+.radio-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 24px;
+    margin-bottom: 10px;
+}
+.radio-group label {
+    font-size: 1rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.radio-group input[type="radio"] {
+    accent-color: var(--primary-color);
+    margin-right: 4px;
+}
+
+/* Results/plots explanation container */
+#metric-display > div {
+    margin-bottom: 10px;
+}
 /* ============================================================================
    ML PLAYGROUND - CORE WORKFLOW ONLY
    ============================================================================ */

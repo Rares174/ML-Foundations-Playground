@@ -92,8 +92,31 @@
                             <option value="knn">K-Nearest Neighbors (flexible)</option>
                             <option value="decision_tree">Decision Tree (interpretable)</option>
                             <option value="random_forest">Random Forest (accurate)</option>
+                            <option value="random_forest_classifier">Random Forest Classifier</option>
+                            <option value="support_vector_machine">Support Vector Machine (SVM)</option>
+                            <option value="naive_bayes">Naive Bayes</option>
+                            <option value="gradient_boosting">Gradient Boosting</option>
+                            <option value="xgboost">XGBoost</option>
                         </select>
                         <p class="info-text">Pick how the model should make predictions.</p>
+                    </div>
+                </div>
+
+                <!-- STEP 6: Metrics Tab -->
+                <div class="block" id="metrics-tab" style="display: block;">
+                    <div class="block-header">
+                        <h3>📏 Metrics</h3>
+                    </div>
+                    <div class="block-content">
+                        <div id="metrics-list" class="radio-group">
+                            <label><input type="radio" name="metric-radio" value="accuracy" checked> Accuracy</label>
+                            <label><input type="radio" name="metric-radio" value="precision"> Precision</label>
+                            <label><input type="radio" name="metric-radio" value="recall"> Recall</label>
+                            <label><input type="radio" name="metric-radio" value="f1_score"> F1 Score</label>
+                            <label><input type="radio" name="metric-radio" value="roc_auc"> ROC AUC</label>
+                            <label><input type="radio" name="metric-radio" value="r2_score"> R² Score</label>
+                        </div>
+                        <p class="info-text">Choose how you want to evaluate your model.</p>
                     </div>
                 </div>
 

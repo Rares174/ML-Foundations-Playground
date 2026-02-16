@@ -1,21 +1,29 @@
+
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import mean_squared_error, accuracy_score, mean_absolute_error
+from sklearn.metrics import mean_squared_error, accuracy_score, mean_absolute_error, precision_score, recall_score, f1_score, roc_auc_score, r2_score, confusion_matrix
 from sklearn.cluster import KMeans
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import os
 import base64
+try:
+    from xgboost import XGBClassifier
+    xgboost_available = True
+except ImportError:
+    xgboost_available = False
+from sklearn.svm import SVC
+from sklearn.naive_bayes import GaussianNB
 
 
-def run_ml(file_path, algorithm, features, target):
+def run_ml(file_path, algorithm, features, target, metric=None):
     """
     ML pipeline supporting supervised and KMeans clustering, with matplotlib plots and explanations.
     """
@@ -45,8 +53,37 @@ def run_ml(file_path, algorithm, features, target):
         else:
             y_encoded = None
 
-        # Supervised learning
-        supervised_algs = ["linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest"]
+        # Supported algorithms
+        supervised_algs = [
+            "linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest",
+            "random_forest_classifier", "support_vector_machine", "naive_bayes", "gradient_boosting"
+        ]
+        if xgboost_available:
+            supervised_algs.append("xgboost")
+
+        classifier_algs = [
+            "logistic_regression", "knn", "decision_tree", "random_forest", "random_forest_classifier",
+            "support_vector_machine", "naive_bayes", "gradient_boosting"
+        ]
+        if xgboost_available:
+            classifier_algs.append("xgboost")
+
+        regressor_algs = ["linear_regression", "decision_tree", "random_forest"]
+
+        # Metric support
+        metric_map = {
+            "accuracy": (accuracy_score, classifier_algs),
+            "precision": (lambda y_true, y_pred: precision_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
+            "recall": (lambda y_true, y_pred: recall_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
+            "f1_score": (lambda y_true, y_pred: f1_score(y_true, y_pred, average="weighted", zero_division=0), classifier_algs),
+            "roc_auc": (lambda y_true, y_pred: roc_auc_score(y_true, y_pred, multi_class="ovr"), classifier_algs),
+            "r2_score": (r2_score, regressor_algs),
+            "mae": (mean_absolute_error, regressor_algs),
+            "mean_absolute_error": (mean_absolute_error, regressor_algs),
+            "mse": (mean_squared_error, regressor_algs),
+            "mean_squared_error": (mean_squared_error, regressor_algs),
+        }
+
         if algorithm in supervised_algs:
             if y_encoded is None:
                 raise ValueError("Target column required for supervised learning.")
@@ -54,48 +91,102 @@ def run_ml(file_path, algorithm, features, target):
             X_train, X_test, y_train, y_test = train_test_split(
                 X_encoded, y_encoded, test_size=0.2, random_state=42
             )
-            # Choose model and metric
+            # Choose model
             if algorithm == "linear_regression":
                 model = LinearRegression()
-                metric_name = "MAE"
-                explanation = "MAE (Mean Absolute Error) measures the average magnitude of errors in predictions."
+                default_metric = "mae"
+                alg_expl = "Linear Regression fits a line to predict numeric values."
             elif algorithm == "logistic_regression":
                 model = LogisticRegression(max_iter=1000, random_state=42)
-                metric_name = "Accuracy"
-                explanation = "Accuracy represents the percentage of correct predictions."
+                default_metric = "accuracy"
+                alg_expl = "Logistic Regression predicts categories using a linear decision boundary."
             elif algorithm == "knn":
                 model = KNeighborsClassifier(n_neighbors=5)
-                metric_name = "Accuracy"
-                explanation = "Accuracy represents the percentage of correct predictions."
+                default_metric = "accuracy"
+                alg_expl = "K-Nearest Neighbors classifies based on the majority label of the closest data points."
             elif algorithm == "decision_tree":
+                # Heuristic: regression if many unique targets, else classification
                 if len(y_encoded.unique()) > (len(y_encoded) * 0.3):
                     model = LinearRegression()
-                    metric_name = "MAE"
-                    explanation = "MAE (Mean Absolute Error) measures the average magnitude of errors in predictions."
+                    default_metric = "mae"
+                    alg_expl = "Decision Tree (regression mode) predicts numbers by splitting data into regions."
                 else:
                     model = DecisionTreeClassifier(random_state=42)
-                    metric_name = "Accuracy"
-                    explanation = "Accuracy represents the percentage of correct predictions."
+                    default_metric = "accuracy"
+                    alg_expl = "Decision Tree (classification mode) splits data into branches to predict categories."
             elif algorithm == "random_forest":
                 if len(y_encoded.unique()) > (len(y_encoded) * 0.3):
                     model = RandomForestRegressor(n_estimators=10, random_state=42)
-                    metric_name = "MAE"
-                    explanation = "MAE (Mean Absolute Error) measures the average magnitude of errors in predictions."
+                    default_metric = "mae"
+                    alg_expl = "Random Forest (regression) averages predictions from many trees."
                 else:
                     model = RandomForestClassifier(n_estimators=10, random_state=42)
-                    metric_name = "Accuracy"
-                    explanation = "Accuracy represents the percentage of correct predictions."
+                    default_metric = "accuracy"
+                    alg_expl = "Random Forest (classification) combines many trees for robust category prediction."
+            elif algorithm == "random_forest_classifier":
+                model = RandomForestClassifier(n_estimators=10, random_state=42)
+                default_metric = "accuracy"
+                alg_expl = "Random Forest Classifier combines many trees for robust category prediction."
+            elif algorithm == "support_vector_machine":
+                model = SVC(probability=True, random_state=42)
+                default_metric = "accuracy"
+                alg_expl = "Support Vector Machine finds the best boundary to separate classes."
+            elif algorithm == "naive_bayes":
+                model = GaussianNB()
+                default_metric = "accuracy"
+                alg_expl = "Naive Bayes uses probability to classify data based on feature independence."
+            elif algorithm == "gradient_boosting":
+                model = GradientBoostingClassifier(random_state=42)
+                default_metric = "accuracy"
+                alg_expl = "Gradient Boosting builds an ensemble of weak learners to improve accuracy."
+            elif algorithm == "xgboost" and xgboost_available:
+                model = XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42)
+                default_metric = "accuracy"
+                alg_expl = "XGBoost is a fast, scalable tree boosting system for classification."
             else:
                 raise ValueError(f"Unknown algorithm: {algorithm}")
-            # Train
+
+            # Train/test split
             model.fit(X_train, y_train)
             y_pred = model.predict(X_test)
-            # Compute metric
-            if metric_name == "Accuracy":
-                metric_value = accuracy_score(y_test, y_pred)
+
+            # Metric selection and validation
+            chosen_metric = metric or default_metric
+            if chosen_metric not in metric_map:
+                raise ValueError(f"Metric '{chosen_metric}' is not supported.")
+            metric_func, allowed_algs = metric_map[chosen_metric]
+            if algorithm not in allowed_algs:
+                raise ValueError(f"Metric '{chosen_metric}' is not compatible with algorithm '{algorithm}'.")
+            # Special case: ROC AUC needs probability or decision function
+            if chosen_metric == "roc_auc":
+                if hasattr(model, "predict_proba"):
+                    y_score = model.predict_proba(X_test)
+                    if y_score.shape[1] == 2:
+                        y_score = y_score[:, 1]
+                elif hasattr(model, "decision_function"):
+                    y_score = model.decision_function(X_test)
+                else:
+                    raise ValueError("Model does not support probability outputs for ROC AUC.")
+                metric_value = metric_func(y_test, y_score)
             else:
-                metric_value = mean_absolute_error(y_test, y_pred)
+                metric_value = metric_func(y_test, y_pred)
             metric_value = round(float(metric_value), 4)
+
+            # Metric explanations
+            metric_expl = {
+                "accuracy": "Accuracy is the fraction of correct predictions.",
+                "precision": "Precision is the fraction of relevant instances among the retrieved instances.",
+                "recall": "Recall is the fraction of relevant instances that were retrieved.",
+                "f1_score": "F1 Score is the harmonic mean of precision and recall.",
+                "roc_auc": "ROC AUC measures the ability to distinguish between classes.",
+                "r2_score": "R² shows how well predictions fit the data (1.0 is perfect).",
+                "mae": "MAE is the average absolute difference between predicted and actual values.",
+                "mean_absolute_error": "MAE is the average absolute difference between predicted and actual values.",
+                "mse": "MSE is the average squared difference between predicted and actual values.",
+                "mean_squared_error": "MSE is the average squared difference between predicted and actual values."
+            }.get(chosen_metric, "This metric helps you evaluate your model's performance.")
+
+            explanation = f"{alg_expl} {metric_expl}"
             plot_dir = os.path.join(os.path.dirname(file_path), "ml_plots")
             os.makedirs(plot_dir, exist_ok=True)
             # Plotting logic by model

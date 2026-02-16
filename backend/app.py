@@ -65,8 +65,15 @@ def train_model():
         # Parse target (may be ignored for kmeans)
         target = request.form.get('target', '').strip()
 
+
+        # Parse metric (optional)
+        metric = request.form.get('metric', '').strip().lower() or None
+
         # Dynamic pipeline logic
-        supervised_algs = ["linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest"]
+        supervised_algs = [
+            "linear_regression", "logistic_regression", "knn", "decision_tree", "random_forest",
+            "random_forest_classifier", "support_vector_machine", "naive_bayes", "gradient_boosting", "xgboost"
+        ]
         if algorithm in supervised_algs:
             if not target:
                 return jsonify({"error": "Target column required for supervised learning."}), 400
@@ -82,7 +89,7 @@ def train_model():
 
         # Run ML pipeline (returns dict with metric, explanation, plots)
         try:
-            result = run_ml(temp_path, algorithm, features, target)
+            result = run_ml(temp_path, algorithm, features, target, metric=metric)
         except Exception as e:
             return jsonify({"error": str(e)}), 400
 
